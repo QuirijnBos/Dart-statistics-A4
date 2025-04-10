@@ -9,21 +9,30 @@
     body { font-family: sans-serif; padding: 20px; }
     canvas { max-width: 100%; }
     .form-group { margin-bottom: 10px; }
+    .player-avg { margin-top: 20px; }
+    .player { margin: 5px 0; }
   </style>
 </head>
 <body>
 
-  <h1>Player Stats Tracker</h1>
+  <h1>A4 Dart tracker</h1>
 
   <div class="form-group">
     <label>Player Name: <input type="text" id="playerName" /></label>
   </div>
   
   <div class="form-group">
-    <label>Darts throwed: <input type="number" id="score" /></label>
+    <label>Darts Thrown: <input type="number" id="score" /></label>
   </div>
   
   <button onclick="addScore()">Add Score</button>
+  <button onclick="deleteLastScore()">Delete Last Score</button>
+  <button onclick="deletePlayer()">Delete Player</button>
+
+  <div class="player-avg">
+    <h3>Player Averages</h3>
+    <div id="playerAverages"></div>
+  </div>
 
   <canvas id="gameChart" height="100"></canvas>
 
@@ -31,15 +40,16 @@
     const ctx = document.getElementById('gameChart').getContext('2d');
     const playerData = {}; // { name: { x: [], y: [] } }
 
+    // Create chart with an empty dataset initially
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
-        datasets: []
+        datasets: [] // Empty dataset at the start
       },
       options: {
         responsive: true,
         animation: false,
-        parsing: false,
+        parsing: false, // We provide x/y manually
         scales: {
           x: {
             type: 'linear',
@@ -57,18 +67,50 @@
             beginAtZero: true,
             title: {
               display: true,
-              text: 'Goals Scored'
+              text: 'Darts Thrown'
             }
           }
         },
         plugins: {
           title: {
             display: true,
-            text: 'Individual Player Game Stats'
+            text: 'Player Dart Stats'
           }
         }
       }
     });
+
+    // Save to localStorage
+    function saveData() {
+      localStorage.setItem('playerData', JSON.stringify(playerData));
+    }
+
+    // Load data from localStorage
+    function loadData() {
+      const saved = localStorage.getItem('playerData');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        for (const name in parsed) {
+          playerData[name] = parsed[name];
+
+          chart.data.datasets.push({
+            label: name,
+            data: parsed[name].x.map((xVal, i) => ({
+              x: xVal,
+              y: parsed[name].y[i]
+            })),
+            borderColor: getRandomColor(),
+            fill: false,
+            tension: 0 // Straight lines
+          });
+        }
+        chart.update();
+        updatePlayerAverages();
+      }
+    }
+
+    // Load data when page is opened
+    loadData();
 
     function addScore() {
       const name = document.getElementById('playerName').value.trim();
@@ -86,7 +128,7 @@
           data: [],
           borderColor: getRandomColor(),
           fill: false,
-          tension: 0 // 👈 straight lines
+          tension: 0
         });
       }
 
@@ -101,6 +143,82 @@
       }));
 
       chart.update();
+      saveData();
+      updatePlayerAverages(); // Update averages immediately after adding score
+    }
+
+    function deleteLastScore() {
+      const name = document.getElementById('playerName').value.trim();
+      if (!name || !playerData[name] || playerData[name].x.length === 0) {
+        alert("No scores to delete for this player.");
+        return;
+      }
+
+      // Remove the last score (both x and y)
+      playerData[name].x.pop();
+      playerData[name].y.pop();
+
+      // Update the chart data
+      const dataset = chart.data.datasets.find(d => d.label === name);
+      if (dataset) {
+        dataset.data = playerData[name].x.map((xVal, i) => ({
+          x: xVal,
+          y: playerData[name].y[i]
+        }));
+      }
+
+      // If no data left for the player, remove their dataset from chart
+      if (playerData[name].x.length === 0) {
+        chart.data.datasets = chart.data.datasets.filter(d => d.label !== name);
+      }
+
+      chart.update();
+      saveData();
+      updatePlayerAverages(); // Update averages immediately after deletion
+    }
+
+    function deletePlayer() {
+      const name = document.getElementById('playerName').value.trim();
+      if (!name || !playerData[name]) {
+        alert("Enter a valid existing player name to delete.");
+        return;
+      }
+
+      // Remove from local data
+      delete playerData[name];
+
+      // Remove from chart
+      chart.data.datasets = chart.data.datasets.filter(d => d.label !== name);
+      chart.update();
+      saveData();
+      updatePlayerAverages(); // Update averages immediately after deletion
+    }
+
+    function clearAll() {
+      if (!confirm("Are you sure you want to delete all data?")) return;
+
+      // Clear everything
+      for (const key in playerData) delete playerData[key];
+      chart.data.datasets = [];
+      chart.update();
+      localStorage.removeItem('playerData');
+      updatePlayerAverages(); // Clear averages after deleting all data
+    }
+
+    function updatePlayerAverages() {
+      const playerAveragesDiv = document.getElementById('playerAverages');
+      playerAveragesDiv.innerHTML = ''; // Clear existing averages
+
+      // Display averages for all players
+      for (const name in playerData) {
+        const totalGoals = playerData[name].y.reduce((sum, score) => sum + score, 0);
+        const average = totalGoals / playerData[name].y.length;
+        const avgText = `${name}: Average - ${average.toFixed(2)}`;
+        const playerDiv = document.createElement('div');
+        playerDiv.classList.add('player');
+        playerDiv.textContent = avgText;
+        playerAveragesDiv.appendChild(playerDiv);
+      }
     }
 
     function getRandomColor() {
@@ -109,42 +227,6 @@
       const b = Math.floor(Math.random() * 200);
       return `rgb(${r}, ${g}, ${b})`;
     }
-
-    // Save to localStorage
-function saveData() {
-  localStorage.setItem('playerData', JSON.stringify(playerData));
-}
-
-// Load from localStorage
-function loadData() {
-  const saved = localStorage.getItem('playerData');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    for (const name in parsed) {
-      playerData[name] = parsed[name];
-
-      chart.data.datasets.push({
-        label: name,
-        data: parsed[name].x.map((xVal, i) => ({
-          x: xVal,
-          y: parsed[name].y[i]
-        })),
-        borderColor: getRandomColor(),
-        fill: false,
-        tension: 0
-      });
-    }
-    chart.update();
-  }
-}
-
-// Auto-load on page start
-loadData();
-
-chart.update();
-saveData(); // 👈 Save after each input
-
-
   </script>
 
 </body>
