@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Individual Player Stats Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    canvas { max-width: 100%; }
+    .form-group { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>Player Stats Tracker</h1>
+
+  <div class="form-group">
+    <label>Player Name: <input type="text" id="playerName" /></label>
+  </div>
+  
+  <div class="form-group">
+    <label>Darts throwed: <input type="number" id="score" /></label>
+  </div>
+  
+  <button onclick="addScore()">Add Score</button>
+
+  <canvas id="gameChart" height="100"></canvas>
+
+  <script>
+    const ctx = document.getElementById('gameChart').getContext('2d');
+    const playerData = {}; // { name: { x: [], y: [] } }
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: []
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        parsing: false,
+        scales: {
+          x: {
+            type: 'linear',
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Games Played'
+            },
+            ticks: {
+              stepSize: 1,
+              precision: 0
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Goals Scored'
+            }
+          }
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: 'Individual Player Game Stats'
+          }
+        }
+      }
+    });
+
+    function addScore() {
+      const name = document.getElementById('playerName').value.trim();
+      const score = parseInt(document.getElementById('score').value);
+
+      if (!name || isNaN(score)) {
+        alert("Please enter a valid name and score.");
+        return;
+      }
+
+      if (!playerData[name]) {
+        playerData[name] = { x: [], y: [] };
+        chart.data.datasets.push({
+          label: name,
+          data: [],
+          borderColor: getRandomColor(),
+          fill: false,
+          tension: 0 // 👈 straight lines
+        });
+      }
+
+      const roundsPlayed = playerData[name].x.length + 1;
+      playerData[name].x.push(roundsPlayed);
+      playerData[name].y.push(score);
+
+      const dataset = chart.data.datasets.find(d => d.label === name);
+      dataset.data = playerData[name].x.map((xVal, i) => ({
+        x: xVal,
+        y: playerData[name].y[i]
+      }));
+
+      chart.update();
+    }
+
+    function getRandomColor() {
+      const r = Math.floor(Math.random() * 200);
+      const g = Math.floor(Math.random() * 200);
+      const b = Math.floor(Math.random() * 200);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // Save to localStorage
+function saveData() {
+  localStorage.setItem('playerData', JSON.stringify(playerData));
+}
+
+// Load from localStorage
+function loadData() {
+  const saved = localStorage.getItem('playerData');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    for (const name in parsed) {
+      playerData[name] = parsed[name];
+
+      chart.data.datasets.push({
+        label: name,
+        data: parsed[name].x.map((xVal, i) => ({
+          x: xVal,
+          y: parsed[name].y[i]
+        })),
+        borderColor: getRandomColor(),
+        fill: false,
+        tension: 0
+      });
+    }
+    chart.update();
+  }
+}
+
+// Auto-load on page start
+loadData();
+
+chart.update();
+saveData(); // 👈 Save after each input
+
+
+  </script>
+
+</body>
+</html>
